@@ -1,0 +1,5 @@
+﻿video_id,title,description,tags,categoryId,privacyStatus,publishAt,made_for_kids,thumbnail_path,playlist_id,is_short
+QP54mM24VZI,Yeni Başlık 1,Yeni açıklama satırı 1\nDevam satırı,"beykoz,haber,gündem",22,,,false,,,
+dQw4w9WgXcQ,,Planlı yayın örneği,"teknoloji,gelecek",,scheduled,2025-10-05T14:00:00+03:00,,,,
+3JZ_D3ELwOQ,Kısa Video Başlığı,Shorts açıklaması,"short,deneme",22,public,,false,C:\\vid\\thumb.jpg,,true
+9bZkp7q19f0,,,,,public,,,,https://www.youtube.com/playlist?list=PLxxxx,
