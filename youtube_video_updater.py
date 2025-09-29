@@ -49,6 +49,117 @@ MAX_THUMB_SIZE_MB = 2
 MIN_THUMB_WIDTH = 1280
 MIN_THUMB_HEIGHT = 720
 
+# ======= Kategori Sabitleri (Hard-coded) =======
+# Kullanıcının verdiği tam liste
+VALID_CATEGORY_IDS = {
+    "1","2","10","15","17","18","19","20","21","22","23","24","25","26","27",
+    "28","29","30","31","32","33","34","35","36","37","38","39","40","41","42","43","44"
+}
+
+CATEGORY_TITLES = {
+    "1":  "Film & Animation",
+    "2":  "Autos & Vehicles",
+    "10": "Music",
+    "15": "Pets & Animals",
+    "17": "Sports",
+    "18": "Short Movies",
+    "19": "Travel & Events",
+    "20": "Gaming",
+    "21": "Videoblogging",
+    "22": "People & Blogs",
+    "23": "Comedy",
+    "24": "Entertainment",
+    "25": "News & Politics",
+    "26": "Howto & Style",
+    "27": "Education",
+    "28": "Science & Technology",
+    "29": "Nonprofits & Activism",
+    "30": "Movies",
+    "31": "Anime/Animation",
+    "32": "Action/Adventure",
+    "33": "Classics",
+    "34": "Comedy",
+    "35": "Documentary",
+    "36": "Drama",
+    "37": "Family",
+    "38": "Foreign",
+    "39": "Horror",
+    "40": "Sci-Fi/Fantasy",
+    "41": "Thriller",
+    "42": "Shorts",
+    "43": "Shows",
+    "44": "Trailers",
+}
+
+# İsim → ID (TR/EN varyantları; YouTube upload sayfasındaki etiketler dahil)
+NAME_TO_ID = {
+    # EN
+    "autos & vehicles": "2", "cars & vehicles": "2",
+    "film & animation": "1",
+    "music": "10",
+    "pets & animals": "15",
+    "sports": "17", "sport": "17",
+    "short movies": "18",
+    "travel & events": "19",
+    "gaming": "20",
+    "videoblogging": "21",
+    "people & blogs": "22",
+    "comedy": "23",
+    "entertainment": "24",
+    "news & politics": "25",
+    "howto & style": "26", "how-to & style": "26",
+    "education": "27",
+    "science & technology": "28",
+    "nonprofits & activism": "29", "non-profits & activism": "29",
+    "movies": "30",
+    "anime/animation": "31",
+    "action/adventure": "32",
+    "classics": "33",
+    "documentary": "35",
+    "drama": "36",
+    "family": "37",
+    "foreign": "38",
+    "horror": "39",
+    "sci-fi/fantasy": "40",
+    "thriller": "41",
+    "shorts": "42",
+    "shows": "43",
+    "trailers": "44",
+
+    # TR popüler karşılıklar
+    "araba & araçlar": "2", "arabalar & araçlar": "2", "otomobiller": "2",
+    "film & animasyon": "1",
+    "müzik": "10",
+    "evcil hayvanlar": "15", "hayvanlar": "15",
+    "spor": "17",
+    "kısa filmler": "18",
+    "seyahat & etkinlikler": "19", "seyahat ve etkinlikler": "19",
+    "oyun": "20",
+    "videoblogging": "21", "video günlükleri": "21",
+    "insanlar & bloglar": "22", "insanlar ve bloglar": "22",
+    "komedi": "23",
+    "eğlence": "24", "eglence": "24",
+    "haber & siyaset": "25", "haber ve siyaset": "25",
+    "nasıl yapılır & stil": "26", "nasil yapilir & stil": "26",
+    "eğitim": "27", "egitim": "27",
+    "bilim & teknoloji": "28", "bilim ve teknoloji": "28",
+    "kar amacı gütmeyenler & aktivizm": "29", "kar amaci gutmeyenler & aktivizm": "29",
+    "filmler": "30",
+    "anime/animasyon": "31",
+    "aksiyon/macera": "32",
+    "klasikler": "33",
+    "belgesel": "35",
+    "dram": "36",
+    "aile": "37",
+    "yabancı": "38", "yabanci": "38",
+    "korku": "39",
+    "bilim kurgu/fantastik": "40",
+    "gerilim": "41",
+    "kısa videolar": "42",
+    "programlar": "43",
+    "fragmanlar": "44",
+}
+
 # ======= Yardımcılar =======
 def safe_bool(x: Any) -> bool:
     if isinstance(x, bool):
@@ -69,10 +180,15 @@ def load_table(path: str) -> pd.DataFrame:
         df = pd.read_csv(path)
     else:
         raise ValueError("Lütfen .xlsx/.xls veya .csv dosyası seçin.")
+
+    # Eksik kolonları tamamla
     for col in REQUIRED_COLUMNS + OPTIONAL_COLUMNS:
         if col not in df.columns:
             df[col] = ""
-    return df[REQUIRED_COLUMNS + OPTIONAL_COLUMNS].copy()
+
+    # NaN -> "" dönüştür
+    df = df[REQUIRED_COLUMNS + OPTIONAL_COLUMNS].copy().fillna("")
+    return df
 
 def get_youtube_service():
     creds = None
@@ -134,7 +250,7 @@ def list_my_recent_videos(youtube, max_results=10, log_cb=None):
     try:
         resp = youtube.search().list(
             part="id,snippet",
-            forMine=True,  # eski sürümlerde 'mine' yerine forMine kullanılır
+            forMine=True,
             type="video",
             order="date",
             maxResults=max_results
@@ -176,6 +292,34 @@ def validate_thumbnail(thumb_path: str, log_cb=None) -> bool:
             return False
     return True
 
+# ======= Kategori Normalize (API'siz) =======
+def norm_category_id(value) -> Optional[str]:
+    """
+    - '10', 10, '10.0' -> '10'
+    - İsim (TR/EN) -> ID (NAME_TO_ID)
+    - Son olarak VALID_CATEGORY_IDS içinde değilse None
+    """
+    if value is None:
+        return None
+    s = str(value).strip()
+    if s == "" or s.lower() in ("nan", "none"):
+        return None
+
+    # '10.0' -> '10'
+    try:
+        f = float(s.replace(",", "."))
+        if f.is_integer():
+            s = str(int(f))
+    except Exception:
+        # sayı değilse isim eşlemesi dene
+        name = s.lower()
+        s = NAME_TO_ID.get(name, None)
+        if s is None:
+            return None
+
+    # Buraya sayı string geldi varsayımıyla
+    return s if s in VALID_CATEGORY_IDS else None
+
 # ======= Güncelleme İşlemleri =======
 def fetch_current(youtube, video_id: str) -> Dict[str, Any]:
     resp = youtube.videos().list(part="snippet,status", id=video_id).execute()
@@ -183,6 +327,35 @@ def fetch_current(youtube, video_id: str) -> Dict[str, Any]:
     if not items:
         raise ValueError(f"Video bulunamadı: {video_id}")
     return items[0]
+
+def _norm_priv(x) -> Optional[str]:
+    if x is None:
+        return None
+    s = str(x).strip().lower()
+    if s in ("", "nan", "none"):
+        return None
+    mapping = {
+        "scheduled": "private",  # planlı yayın için
+        "özel": "private",
+        "halka açık": "public",
+        "liste dışı": "unlisted",
+        "liste disi": "unlisted",
+    }
+    s = mapping.get(s, s)
+    if s in ("public", "private", "unlisted"):
+        return s
+    return None
+
+def _norm_publish_at(val) -> str:
+    """Boş veya geçersizse '' döndür; datetime ise isoformat; stringse strip."""
+    if val is None:
+        return ""
+    if isinstance(val, str):
+        return val.strip()
+    try:
+        return val.isoformat()
+    except Exception:
+        return ""
 
 def build_update_body(current: Dict[str, Any], row: pd.Series, log_cb=None) -> Dict[str, Any]:
     body = {"id": current["id"]}
@@ -210,24 +383,21 @@ def build_update_body(current: Dict[str, Any], row: pd.Series, log_cb=None) -> D
     if tags_raw.strip() != "":
         snippet["tags"] = parse_tags(tags_raw)
 
-    cat = str(row.get("categoryId", "")).strip()
-    if cat:
-        snippet["categoryId"] = cat
-
     # Status
     status = {
         "privacyStatus": cur_status.get("privacyStatus", "public"),
         "selfDeclaredMadeForKids": cur_status.get("selfDeclaredMadeForKids", False)
     }
-    priv = str(row.get("privacyStatus", "")).strip().lower()
-    if priv:
-        status["privacyStatus"] = "private" if priv == "scheduled" else priv
+
+    priv = _norm_priv(row.get("privacyStatus", ""))
+    if priv is not None:
+        status["privacyStatus"] = priv
 
     mk = str(row.get("made_for_kids", "")).strip()
     if mk:
         status["selfDeclaredMadeForKids"] = safe_bool(mk)
 
-    publish_at = str(row.get("publishAt", "")).strip()
+    publish_at = _norm_publish_at(row.get("publishAt", ""))
     if publish_at:
         status["publishAt"] = publish_at
 
@@ -242,6 +412,15 @@ def update_video(youtube, row: pd.Series, log_cb=None):
 
     current = fetch_current(youtube, video_id)
     body = build_update_body(current, row, log_cb=log_cb)
+
+    # ---- Kategori doğrulaması (sabit listeden) ----
+    raw_cat = row.get("categoryId", "")
+    cat = norm_category_id(raw_cat)
+    if cat is not None:
+        body["snippet"]["categoryId"] = cat
+    else:
+        if log_cb and str(raw_cat).strip():
+            log_cb(f"Uyarı: Geçersiz categoryId '{raw_cat}' -> mevcut kategori korunuyor.")
 
     # Güncelle
     youtube.videos().update(part="snippet,status", body=body).execute()
@@ -361,6 +540,7 @@ class App:
         ttk.Button(ctrl, text="Durdur", command=self.stop_updates, bootstyle=WARNING).pack(side=tk.LEFT, padx=4)
         ttk.Button(ctrl, text="Oynatma Listelerimi Göster", command=self.show_playlists, bootstyle=SECONDARY).pack(side=tk.LEFT, padx=4)
         ttk.Button(ctrl, text="Son Videoları Göster", command=self.show_recent_videos, bootstyle=SECONDARY).pack(side=tk.LEFT, padx=4)
+        ttk.Button(ctrl, text="Kategorileri Göster", command=self.show_categories, bootstyle=SECONDARY).pack(side=tk.LEFT, padx=4)
 
         self.tree = ttk.Treeview(self.root, columns=("video_id","status"), show="headings", height=14)
         self.tree.heading("video_id", text="Video ID")
@@ -384,7 +564,7 @@ class App:
     def choose_file(self):
         path = filedialog.askopenfilename(
             title="Excel/CSV seçin",
-            filetypes=[("Excel","*.xlsx *.xls"), ("CSV","*.csv")]
+            filetypes=[("CSV","*.csv"),("Excel","*.xlsx *.xls")]
         )
         if path:
             try:
@@ -459,6 +639,13 @@ class App:
             list_my_recent_videos(yt, max_results=10, log_cb=self.log)
         except Exception as e:
             messagebox.showerror("Hata", str(e))
+
+    def show_categories(self):
+        # Sabit listeden yazdır
+        self.log("Kategoriler (sabit liste):")
+        for cid in sorted(VALID_CATEGORY_IDS, key=lambda x: int(x)):
+            title = CATEGORY_TITLES.get(cid, "")
+            self.log(f"Kategori {cid}: {title}")
 
 # ======= Giriş Noktası =======
 def main():
