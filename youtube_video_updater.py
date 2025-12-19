@@ -368,6 +368,12 @@ def build_update_body(current: Dict[str, Any], row: pd.Series, log_cb=None) -> D
         "description": cur_snippet.get("description", ""),
         "categoryId": cur_snippet.get("categoryId", "22"),
     }
+    # ---- Video dili ve ses dili KORUNUR ----
+    if cur_snippet.get("defaultLanguage"):
+        snippet["defaultLanguage"] = cur_snippet.get("defaultLanguage")
+    
+    if cur_snippet.get("defaultAudioLanguage"):
+        snippet["defaultAudioLanguage"] = cur_snippet.get("defaultAudioLanguage")
     if "tags" in cur_snippet:
         snippet["tags"] = cur_snippet.get("tags", [])
 
@@ -636,7 +642,7 @@ class App:
         try:
             yt = get_youtube_service()
             self.log("Son yüklenen videolar alınıyor...")
-            list_my_recent_videos(yt, max_results=10, log_cb=self.log)
+            list_my_recent_videos(yt, max_results=38, log_cb=self.log)
         except Exception as e:
             messagebox.showerror("Hata", str(e))
 
